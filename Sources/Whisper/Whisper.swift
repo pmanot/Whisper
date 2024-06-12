@@ -61,7 +61,7 @@ final public class Whisper: ObservableObject {
 	private var prevResult: TranscriptionResult?
 	
 	// TODO: - configure custom model path
-	private init(modelPath: String? = nil) {
+	public init(modelPath: String? = nil) {
 		logger.info("Initializing Whisper")
 		fetchModels()
 		loadModel(configuration.selectedModel)
@@ -105,7 +105,7 @@ final public class Whisper: ObservableObject {
 	}
 	
 	/// Load the specified model. Optionally redownloads the model if necessary.
-	func loadModel(_ model: String, redownload: Bool = false) {
+	public func loadModel(_ model: String, redownload: Bool = false) {
 		whisperKit = nil
 		Task(priority: .high) {
 			whisperKit = try await WhisperKit(
