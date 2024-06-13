@@ -65,7 +65,7 @@ final public class Whisper: ObservableObject {
 		
 		self.configuration = configuration
 		
-		let modelURL = modelFolder ?? Bundle.module.url(forResource: "openai_whisper-base", withExtension: nil)!
+		let modelURL = modelFolder ?? Bundle.module.url(forResource: "Resources/openai_whisper-base", withExtension: nil)!
 		loadModelFromURL(folder: modelURL)
 	}
 	
