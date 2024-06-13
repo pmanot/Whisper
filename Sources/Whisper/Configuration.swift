@@ -4,26 +4,26 @@ import CoreML
 
 public extension Whisper {
 	struct Configuration {
-		@AppStorage("selectedModel") var selectedModel: String = "distil-large-v3_594MB"
-		@AppStorage("repoName") var repoName: String = "argmaxinc/whisperkit-coreml"
-		@AppStorage("selectedLanguage") var selectedLanguage: String = "english"
-		@AppStorage("enablePromptPrefill") var enablePromptPrefill: Bool = false
-		@AppStorage("enableCachePrefill") var enableCachePrefill: Bool = false
-		@AppStorage("enableSpecialCharacters") var enableSpecialCharacters: Bool = false
-		@AppStorage("enableEagerDecoding") var enableEagerDecoding: Bool = false
-		@AppStorage("temperatureStart") var temperatureStart: Double = 0
-		@AppStorage("fallbackCount") var fallbackCount: Double = 5
-		@AppStorage("compressionCheckWindow") var compressionCheckWindow: Double = 60
-		@AppStorage("sampleLength") var sampleLength: Double = 224
-		@AppStorage("silenceThreshold") var silenceThreshold: Double = 0.2
-		@AppStorage("useVAD") var useVAD: Bool = true
-		@AppStorage("tokenConfirmationsNeeded") var tokenConfirmationsNeeded: Double = 2
-		@AppStorage("chunkingStrategy") var chunkingStrategy: ChunkingStrategy = .none
-		@AppStorage("encoderComputeUnits") var encoderComputeUnits: MLComputeUnits = .cpuAndGPU
-		@AppStorage("decoderComputeUnits") var decoderComputeUnits: MLComputeUnits = .all
+		@AppStorage("selectedModel") public var selectedModel: String = "base"
+		@AppStorage("repoName") public var repoName: String = "argmaxinc/whisperkit-coreml"
+		@AppStorage("selectedLanguage") public var selectedLanguage: String = "english"
+		@AppStorage("enablePromptPrefill") public var enablePromptPrefill: Bool = false
+		@AppStorage("enableCachePrefill") public var enableCachePrefill: Bool = false
+		@AppStorage("enableSpecialCharacters") public var enableSpecialCharacters: Bool = false
+		@AppStorage("enableEagerDecoding") public var enableEagerDecoding: Bool = false
+		@AppStorage("temperatureStart") public var temperatureStart: Double = 0
+		@AppStorage("fallbackCount") public var fallbackCount: Double = 5
+		@AppStorage("compressionCheckWindow") public var compressionCheckWindow: Double = 60
+		@AppStorage("sampleLength") public var sampleLength: Double = 224
+		@AppStorage("silenceThreshold") public var silenceThreshold: Double = 0.2
+		@AppStorage("useVAD") public var useVAD: Bool = true
+		@AppStorage("tokenConfirmationsNeeded") public var tokenConfirmationsNeeded: Double = 2
+		@AppStorage("chunkingStrategy") public var chunkingStrategy: ChunkingStrategy = .none
+		@AppStorage("encoderComputeUnits") public var encoderComputeUnits: MLComputeUnits = .all
+		@AppStorage("decoderComputeUnits") public var decoderComputeUnits: MLComputeUnits = .all
 		
 		public init(
-			selectedModel: String = "distil-large-v3_594MB",
+			selectedModel: String = "base",
 			repoName: String = "argmaxinc/whisperkit-coreml",
 			selectedLanguage: String = "english",
 			enablePromptPrefill: Bool = false,

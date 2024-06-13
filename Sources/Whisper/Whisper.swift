@@ -12,18 +12,17 @@ import CoreML
 import OSLog
 
 /// A processor for handling Whisper-related tasks, including model loading, recording, and transcription.
+@MainActor
 final public class Whisper: ObservableObject {
-	public static let shared = Whisper()
-	
 	public private(set) var whisperKit: WhisperKit?
-	public private(set) var modelState: ModelState = .unloaded
-	public private(set) var configuration: Configuration = .default
-	public private(set) var localModels: [String] = []
-	public private(set) var localModelPath: String = ""
-	public private(set) var availableModels: [String] = []
-	public private(set) var availableLanguages: [String] = []
-	public private(set) var loadingProgressValue: Float = 0.0
-	public private(set) var specializationProgressRatio: Float = 0.7
+	@Published public private(set) var modelState: ModelState = .unloaded
+	@Published public private(set) var configuration: Configuration
+	@Published public private(set) var localModels: [String] = []
+	@Published public private(set) var localModelPath: String = ""
+	@Published public private(set) var availableModels: [String] = []
+	@Published public private(set) var availableLanguages: [String] = []
+	@Published public private(set) var loadingProgressValue: Float = 0.0
+	@Published public private(set) var specializationProgressRatio: Float = 0.7
 	
 	@Published public private(set) var isRecording: Bool = false
 	@Published public private(set) var isTranscribing: Bool = false
@@ -61,10 +60,13 @@ final public class Whisper: ObservableObject {
 	private var prevResult: TranscriptionResult?
 	
 	// TODO: - configure custom model path
-	public init(modelPath: String? = nil) {
+	public init(modelFolder: URL? = nil, configuration: Configuration = .default) {
 		logger.info("Initializing Whisper")
-		fetchModels()
-		loadModel(configuration.selectedModel)
+		
+		self.configuration = configuration
+		
+		let modelURL = modelFolder ?? Bundle.module.url(forResource: "openai_whisper-base", withExtension: nil)!
+		loadModelFromURL(folder: modelURL)
 	}
 	
 	/// Fetch available models from the local storage and remote repository.
@@ -104,13 +106,66 @@ final public class Whisper: ObservableObject {
 		}
 	}
 	
+	public func loadModelFromURL(folder: URL) {
+		Task(priority: .high) {
+			whisperKit = try await WhisperKit(
+				computeOptions: getComputeOptions(),
+				verbose: true,
+				logLevel: .debug,
+				prewarm: false,
+				load: false,
+				download: false
+			)
+			guard let whisperKit = self.whisperKit else { return }
+						
+			await MainActor.run {
+				self.loadingProgressValue = self.specializationProgressRatio
+				self.modelState = .downloaded
+			}
+			
+			whisperKit.modelFolder = folder
+			
+			await MainActor.run {
+				self.loadingProgressValue = self.specializationProgressRatio
+				self.modelState = .prewarming
+			}
+			
+			let progressBarTask = Task {
+				await self.updateProgressBar(targetProgress: 0.9, maxTime: 240)
+			}
+			
+			do {
+				try await whisperKit.prewarmModels()
+				progressBarTask.cancel()
+			} catch {
+				progressBarTask.cancel()
+				modelState = .unloaded
+				return
+			}
+			
+			await MainActor.run {
+				self.loadingProgressValue = self.specializationProgressRatio + 0.9 * (1 - self.specializationProgressRatio)
+				self.modelState = .loading
+			}
+			
+			try await whisperKit.loadModels()
+			
+			await MainActor.run {
+				self.availableLanguages = Constants.languages.map { $0.key }.sorted()
+				self.loadingProgressValue = 1.0
+				self.modelState = whisperKit.modelState
+			}
+		}
+
+	}
+	
 	/// Load the specified model. Optionally redownloads the model if necessary.
 	public func loadModel(_ model: String, redownload: Bool = false) {
 		whisperKit = nil
 		Task(priority: .high) {
 			whisperKit = try await WhisperKit(
 				computeOptions: getComputeOptions(),
-				verbose: false,
+				verbose: true,
 				logLevel: .debug,
 				prewarm: false,
 				load: false,
@@ -332,7 +387,7 @@ final public class Whisper: ObservableObject {
 	}
 	
 	/// Toggle recording state.
-	func toggleRecording(shouldLoop: Bool) {
+	public func toggleRecording(shouldLoop: Bool) {
 		isRecording.toggle()
 		
 		if isRecording {
