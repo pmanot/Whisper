@@ -437,7 +437,7 @@ final public class Whisper: ObservableObject {
 	}
 	
 	/// Start recording audio.
-	private func startRecording(_ loop: Bool) {
+	public func startRecording(_ loop: Bool) {
 		if let audioProcessor = whisperKit?.audioProcessor {
 			Task(priority: .high) {
 				guard await AudioProcessor.requestRecordPermission() else {
@@ -462,7 +462,7 @@ final public class Whisper: ObservableObject {
 	}
 	
 	/// Stop recording audio.
-	private func stopRecording(_ loop: Bool) {
+	public func stopRecording(_ loop: Bool) {
 		isRecording = false
 		stopRealtimeTranscription()
 		whisperKit?.audioProcessor.stopRecording()
@@ -494,7 +494,6 @@ final public class Whisper: ObservableObject {
 	
 	/// Stop real-time transcription.
 	private func stopRealtimeTranscription() {
-		isTranscribing = false
 		transcriptionTask?.cancel()
 	}
 	
@@ -569,6 +568,8 @@ final public class Whisper: ObservableObject {
 			} else {
 				self.unconfirmedSegments = segments
 			}
+			
+			isTranscribing = false
 		}
 	}
 }
