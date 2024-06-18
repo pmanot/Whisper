@@ -15,6 +15,7 @@ import OSLog
 @MainActor
 final public class Whisper: ObservableObject {
 	public private(set) var whisperKit: WhisperKit?
+	@Published public var startDate: Date? = nil
 	@Published public private(set) var modelState: ModelState = .unloaded
 	@Published public private(set) var configuration: Configuration
 	@Published public private(set) var localModels: [String] = []
@@ -24,8 +25,8 @@ final public class Whisper: ObservableObject {
 	@Published public private(set) var loadingProgressValue: Float = 0.0
 	@Published public private(set) var specializationProgressRatio: Float = 0.7
 	
-	@Published public private(set) var isRecording: Bool = false
-	@Published public private(set) var isTranscribing: Bool = false
+	@Published public var isRecording: Bool = false
+	@Published public var isTranscribing: Bool = false
 	@Published public private(set) var confirmedSegments: [TranscriptionSegment] = []
 	@Published public private(set) var unconfirmedSegments: [TranscriptionSegment] = []
 	@Published public private(set) var currentText: String = ""
@@ -438,6 +439,8 @@ final public class Whisper: ObservableObject {
 	
 	/// Start recording audio.
 	public func startRecording(_ loop: Bool) {
+		self.startDate = nil
+		
 		if let audioProcessor = whisperKit?.audioProcessor {
 			Task(priority: .high) {
 				guard await AudioProcessor.requestRecordPermission() else {
@@ -447,6 +450,10 @@ final public class Whisper: ObservableObject {
 				
 				try? audioProcessor.startRecordingLive { _ in
 					Task { @MainActor in
+						if self.startDate == nil {
+							self.startDate = .now
+						}
+						
 						self.bufferEnergy = self.whisperKit?.audioProcessor.relativeEnergy ?? []
 						self.bufferSeconds = Double(self.whisperKit?.audioProcessor.audioSamples.count ?? 0) / Double(WhisperKit.sampleRate)
 					}
@@ -464,6 +471,7 @@ final public class Whisper: ObservableObject {
 	/// Stop recording audio.
 	public func stopRecording(_ loop: Bool) {
 		isRecording = false
+		isTranscribing = false
 		stopRealtimeTranscription()
 		whisperKit?.audioProcessor.stopRecording()
 		
