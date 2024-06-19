@@ -484,16 +484,17 @@ final public class Whisper: ObservableObject {
 		stopRealtimeTranscription()
 		whisperKit?.audioProcessor.stopRecording()
 		
+		/*
 		if !loop {
 			Task(priority: .high) {
 				do {
-					try await transcribeCurrentBuffer()
+					//try await transcribeCurrentBuffer()
 				} catch {
 					self.state = .idle
 					logger.error("Error: \(error.localizedDescription)")
 				}
 			}
-		}
+		}*/
 	}
 	
 	
@@ -597,13 +598,46 @@ final public class Whisper: ObservableObject {
 	public func transcribe() async throws -> [TranscriptionResult] {
 		guard let whisperKit = whisperKit else { return [] }
 		
+		// Fetch the current audio buffer
 		let currentBuffer = whisperKit.audioProcessor.audioSamples
+		if currentBuffer.isEmpty {
+			logger.info("No audio samples available for transcription.")
+			return []
+		}
 		
-		let nextBufferSize = currentBuffer.count - lastBufferSize
-		let nextBufferSeconds = Float(nextBufferSize) / Float(WhisperKit.sampleRate)
+		// Initial setup for transcription results
+		var transcriptionResults = [TranscriptionResult]()
 		
-		return try await whisperKit.transcribe(audioArray: Array(currentBuffer))
+		// Use a loop to process the buffer in manageable chunks if necessary
+		let bufferSize = currentBuffer.count
+		let sampleRate = Float(WhisperKit.sampleRate)
+		var startIndex = 0
+		let chunkSize = Int(sampleRate * 10) // Processing 10 seconds at a time
+		
+		while startIndex < bufferSize {
+			let endIndex = min(startIndex + chunkSize, bufferSize)
+			let bufferSlice = Array(currentBuffer[startIndex..<endIndex])
+			
+			do {
+				if let transcriptionResult = try await transcribeEagerMode(bufferSlice) {
+					transcriptionResults.append(transcriptionResult)
+				}
+			} catch {
+				logger.error("Error during transcription: \(error.localizedDescription)")
+				throw error
+			}
+			
+			startIndex = endIndex
+		}
+		
+		// Update state and logging
+		isTranscribing = false
+		state = .idle
+		logger.info("Completed transcription with \(transcriptionResults.count) results.")
+		
+		return transcriptionResults
 	}
+
 }
 
 public extension Whisper {
