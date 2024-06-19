@@ -15,6 +15,8 @@ import OSLog
 @MainActor
 final public class Whisper: ObservableObject {
 	public private(set) var whisperKit: WhisperKit?
+	@Published public var state: Whisper.State = .idle
+	
 	@Published public var startDate: Date? = nil
 	@Published public private(set) var modelState: ModelState = .unloaded
 	@Published public private(set) var configuration: Configuration
@@ -392,6 +394,7 @@ final public class Whisper: ObservableObject {
 		isRecording.toggle()
 		
 		if isRecording {
+			state = .recording
 			resetState()
 			startRecording(shouldLoop)
 		} else {
@@ -459,19 +462,25 @@ final public class Whisper: ObservableObject {
 					}
 				}
 				
-				isRecording = true
-				isTranscribing = true
+				await MainActor.run {
+					isRecording = true
+					isTranscribing = true
+					self.state = .recording
+				}
+				
 				if loop {
 					realtimeLoop()
 				}
 			}
+		} else {
+			self.state = .idle
 		}
 	}
 	
 	/// Stop recording audio.
 	public func stopRecording(_ loop: Bool) {
 		isRecording = false
-		isTranscribing = false
+		self.state = .transcribing
 		stopRealtimeTranscription()
 		whisperKit?.audioProcessor.stopRecording()
 		
@@ -480,12 +489,15 @@ final public class Whisper: ObservableObject {
 				do {
 					try await transcribeCurrentBuffer()
 				} catch {
+					self.state = .idle
 					logger.error("Error: \(error.localizedDescription)")
 				}
 			}
 		}
 	}
 	
+	
+	// TODO: - Fix
 	/// Real-time transcription loop.
 	private func realtimeLoop() {
 		transcriptionTask = Task(priority: .high) {
@@ -578,7 +590,27 @@ final public class Whisper: ObservableObject {
 			}
 			
 			isTranscribing = false
+			self.state = .idle
 		}
+	}
+	
+	public func transcribe() async throws -> [TranscriptionResult] {
+		guard let whisperKit = whisperKit else { return [] }
+		
+		let currentBuffer = whisperKit.audioProcessor.audioSamples
+		
+		let nextBufferSize = currentBuffer.count - lastBufferSize
+		let nextBufferSeconds = Float(nextBufferSize) / Float(WhisperKit.sampleRate)
+		
+		return try await whisperKit.transcribe(audioArray: Array(currentBuffer))
+	}
+}
+
+public extension Whisper {
+	enum State: Hashable {
+		case recording
+		case transcribing
+		case idle
 	}
 }
 
