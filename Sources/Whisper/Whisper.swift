@@ -17,6 +17,9 @@ final public class Whisper: ObservableObject {
 	public private(set) var whisperKit: WhisperKit?
 	@Published public var state: Whisper.State = .idle
 	
+	private var audioRecorder = AudioRecorder()
+	@Published public var audioFileURL: URL?
+
 	@Published public var startDate: Date? = nil
 	@Published public private(set) var modelState: ModelState = .unloaded
 	@Published public private(set) var configuration: Configuration
@@ -445,6 +448,9 @@ final public class Whisper: ObservableObject {
 		self.startDate = nil
 		
 		if let audioProcessor = whisperKit?.audioProcessor {
+			audioRecorder.startRecording()
+			self.audioFileURL = audioRecorder.audioFileURL
+
 			Task(priority: .high) {
 				guard await AudioProcessor.requestRecordPermission() else {
 					logger.info("Microphone access was not granted.")
@@ -479,6 +485,7 @@ final public class Whisper: ObservableObject {
 	
 	/// Stop recording audio.
 	public func stopRecording(_ loop: Bool) {
+		audioRecorder.stopRecording()
 		isRecording = false
 		self.state = .transcribing
 		stopRealtimeTranscription()
@@ -597,7 +604,7 @@ final public class Whisper: ObservableObject {
 	
 	public func transcribe() async throws -> [TranscriptionResult] {
 		guard let whisperKit = whisperKit else { return [] }
-		
+		/*
 		// Fetch the current audio buffer
 		let currentBuffer = whisperKit.audioProcessor.audioSamples
 		if currentBuffer.isEmpty {
@@ -636,6 +643,35 @@ final public class Whisper: ObservableObject {
 		logger.info("Completed transcription with \(transcriptionResults.count) results.")
 		
 		return transcriptionResults
+		*/
+		guard let url = audioFileURL else {
+			logger.error("URL not found")
+			return []
+		}
+		
+		let languageCode = Constants.languages[configuration.selectedLanguage, default: Constants.defaultLanguageCode]
+		let task: DecodingTask = .transcribe
+		
+		let options = DecodingOptions(
+			verbose: true,
+			task: task,
+			language: languageCode,
+			temperature: Float(configuration.temperatureStart),
+			temperatureFallbackCount: Int(configuration.fallbackCount),
+			sampleLength: Int(configuration.sampleLength),
+			usePrefillPrompt: configuration.enablePromptPrefill,
+			usePrefillCache: configuration.enableCachePrefill,
+			skipSpecialTokens: !configuration.enableSpecialCharacters,
+			withoutTimestamps: false,
+			wordTimestamps: true,
+			firstTokenLogProbThreshold: -1.5
+		)
+
+		
+		return try await whisperKit.transcribe(
+			audioPath: url.path(),
+			decodeOptions: options
+		)
 	}
 
 }
@@ -647,6 +683,86 @@ public extension Whisper {
 		case idle
 	}
 }
+
+class AudioRecorder: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate, AVCaptureFileOutputRecordingDelegate {
+	private var captureSession: AVCaptureSession?
+	private var audioFileOutput: AVCaptureAudioFileOutput?
+	var audioFileURL: URL?
+	
+	override init() {
+		super.init()
+		setupSession()
+	}
+	
+	private func setupSession() {
+		let session = AVCaptureSession()
+		session.beginConfiguration()
+		
+		guard let audioDevice = AVCaptureDevice.default(for: .audio) else {
+			print("Audio device is unavailable")
+			return
+		}
+		
+		do {
+			let audioInput = try AVCaptureDeviceInput(device: audioDevice)
+			if session.canAddInput(audioInput) {
+				session.addInput(audioInput)
+			} else {
+				print("Cannot add audio input")
+				return
+			}
+			
+			let fileOutput = AVCaptureAudioFileOutput()
+			if session.canAddOutput(fileOutput) {
+				session.addOutput(fileOutput)
+			} else {
+				print("Cannot add file output")
+				return
+			}
+			
+			self.audioFileOutput = fileOutput
+		} catch {
+			print("Failed to setup audio input/output: \(error)")
+			return
+		}
+		
+		session.commitConfiguration()
+		self.captureSession = session
+	}
+	
+	func startRecording() {
+		captureSession?.startRunning()
+		
+		let tempDir = FileManager.default.temporaryDirectory
+		let fileName = "whisper_\(Date().timeIntervalSince1970).m4a"
+		let fileURL = tempDir.appendingPathComponent(fileName)
+		self.audioFileURL = fileURL
+		
+		if let fileOutput = audioFileOutput, captureSession?.isRunning == true {
+			try? fileOutput.startRecording(to: fileURL, outputFileType: .m4a, recordingDelegate: self)
+		} else {
+			print("Session is not running or output is not available")
+		}
+	}
+	
+	func stopRecording() {
+		audioFileOutput?.stopRecording()
+		captureSession?.stopRunning()
+	}
+	
+	func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
+		print("Recording started successfully to \(fileURL).")
+	}
+	
+	func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+		if let error = error {
+			print("Recording failed with error: \(error.localizedDescription)")
+		} else {
+			print("Recording finished successfully to \(outputFileURL).")
+		}
+	}
+}
+
 
 // MARK: - Logging
 

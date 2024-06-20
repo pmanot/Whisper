@@ -15,7 +15,7 @@ public extension Whisper {
 		@AppStorage("fallbackCount") public var fallbackCount: Double = 5
 		@AppStorage("compressionCheckWindow") public var compressionCheckWindow: Double = 60
 		@AppStorage("sampleLength") public var sampleLength: Double = 224
-		@AppStorage("silenceThreshold") public var silenceThreshold: Double = 0.2
+		@AppStorage("silenceThreshold") public var silenceThreshold: Double = 0.0
 		@AppStorage("useVAD") public var useVAD: Bool = true
 		@AppStorage("tokenConfirmationsNeeded") public var tokenConfirmationsNeeded: Double = 2
 		@AppStorage("chunkingStrategy") public var chunkingStrategy: ChunkingStrategy = .none
